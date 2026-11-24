@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JSON差分比較</title><style>*{box-sizing:border-box}body{margin:0;background:#edf3f2;color:#122a27;font:16px system-ui,sans-serif}main{width:min(94%,820px);margin:6vh auto;background:white;padding:clamp(1rem,5vw,2.5rem);border:1px solid #b8cec9;border-radius:18px}h1{margin:0}p{line-height:1.6}form,label{display:grid;gap:.55rem}form{gap:1rem;margin:1.5rem 0}input,textarea,select,button{font:inherit;color:inherit;padding:.65rem;border:1px solid #65847f;border-radius:8px;min-width:0}textarea{resize:vertical;font-family:monospace}button{background:#16534a;color:white;cursor:pointer}output{display:block;white-space:pre-wrap;overflow-wrap:anywhere}</style></head>
+<body><main><h1>JSON差分比較</h1><p>設定やAPI応答を比較し、追加・削除・変更があった位置をJSON Pointerで表示します。オブジェクトのキー順は無視します。数値はJavaScriptの数値精度で比較します。</p>
+<form><label>変更前のJSON<textarea name="before" rows="6" maxlength="100000" required></textarea></label>
+<label>変更後のJSON<textarea name="after" rows="6" maxlength="100000" required></textarea></label><button>比較する</button></form><output aria-live="polite"></output></main>
+<script>
+
+function kind(value) {
+  return value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value;
+}
+function diff(before, after) {
+  const rows = [];
+  const pending = [{before,after,path:''}];
+  while (pending.length) {
+    const item = pending.pop();
+    const left = kind(item.before);
+    const right = kind(item.after);
+    const label = item.path ? JSON.stringify(item.path) : 'ルート';
+    if (left==='undefined') { rows.push('追加  '+label); continue; }
+    if (right==='undefined') { rows.push('削除  '+label); continue; }
+    if (left===right && (left==='object'||left==='array')) {
+      const keys = Array.from(new Set([...Object.keys(item.before),...Object.keys(item.after)])).reverse();
+      keys.forEach(key=>{
+        const path = item.path+'/'+key.replace(/~/g,'~0').replace(/\//g,'~1');
+        pending.push({before:Object.hasOwn(item.before,key)?item.before[key]:undefined,
+          after:Object.hasOwn(item.after,key)?item.after[key]:undefined,path});
+      });
+    } else if (item.before!==item.after) { rows.push('変更  '+label); }
+  }
+  return rows;
+}
+function parse(value, label) {
+  try { return JSON.parse(value); }
+  catch { throw Error(label+'に有効なJSONを入力してください。'); }
+}
+function run(fields) {
+  const rows = diff(parse(fields.get('before'),'変更前'),parse(fields.get('after'),'変更後'));
+  const limit = 500;
+  return rows.length ? [rows.length+'件の差分', ...rows.slice(0,limit),
+    ...(rows.length>limit?['先頭'+limit+'件を表示しています。']:[])].join('\n') : '差分はありません。';
+}
+const form = document.querySelector('form');
+const output = document.querySelector('output');
+form.addEventListener('submit', async event => {
+  event.preventDefault();
+  const button = form.querySelector('button');
+  const fields = new FormData(form);
+  button.disabled = true;
+  try { output.textContent = await run(fields); }
+  catch (error) { output.textContent = error.message; }
+  finally { button.disabled = false; }
+});
+</script></body></html>
