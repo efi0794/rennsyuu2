@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>予定の重複チェック</title><style>*{box-sizing:border-box}body{margin:0;background:#edf3f2;color:#122a27;font:16px system-ui,sans-serif}main{width:min(94%,820px);margin:6vh auto;background:white;padding:clamp(1rem,5vw,2.5rem);border:1px solid #b8cec9;border-radius:18px}h1{margin:0}p{line-height:1.6}form,label{display:grid;gap:.55rem}form{gap:1rem;margin:1.5rem 0}input,textarea,select,button{font:inherit;color:inherit;padding:.65rem;border:1px solid #65847f;border-radius:8px;min-width:0}textarea{resize:vertical;font-family:monospace}button{background:#16534a;color:white;cursor:pointer}output{display:block;white-space:pre-wrap;overflow-wrap:anywhere}</style></head>
+<body><main><h1>予定の重複チェック</h1><p>同じ日の勤務・授業・面接などの予定を入力し、時間が重なる組み合わせを確認できます。</p>
+<form><label>予定（1行につき開始・終了・予定名）<textarea name="schedule" rows="8" maxlength="15000" required placeholder="09:00 12:00 授業&#10;11:30 13:00 面接"></textarea></label><button>重複を確認する</button></form><output aria-live="polite"></output></main>
+<script>
+
+function overlaps(text) {
+  const slots = text.split(/\r?\n/).flatMap((line,index)=>{
+    if (!line.trim()) return [];
+    const match = /^([01]\d|2[0-3]):([0-5]\d)\s+([01]\d|2[0-3]):([0-5]\d)\s+(.+)$/.exec(line.trim());
+    if (!match) throw Error((index+1)+'行目を「09:00 12:00 授業」の形式で入力してください。');
+    const [,startHour,startMinute,endHour,endMinute,name] = match;
+    const start = Number(startHour)*60+Number(startMinute);
+    const end = Number(endHour)*60+Number(endMinute);
+    if (end<=start) throw Error((index+1)+'行目は同日の終了時刻を開始より後にしてください。');
+    return [{start,end,name,line:index+1}];
+  }).sort((a,b)=>a.start-b.start);
+  if (slots.length<2) throw Error('予定を2件以上入力してください。');
+  const conflicts = [];
+  slots.forEach((slot,index)=>{
+    for (let next=index+1;next<slots.length&&slots[next].start<slot.end;next++) {
+      conflicts.push([slot,slots[next]]);
+    }
+  });
+  return conflicts;
+}
+function run(fields) {
+  const conflicts = overlaps(fields.get('schedule'));
+  if (!conflicts.length) return '重複はありません。';
+  const rows = conflicts.slice(0,200).map(([a,b])=>a.line+'行目 '+a.name+' ／ '+b.line+'行目 '+b.name);
+  return [conflicts.length+'組が重複', ...rows, ...(conflicts.length>200?['先頭200組を表示しています。']:[])].join('\n');
+}
+const form = document.querySelector('form');
+const output = document.querySelector('output');
+form.addEventListener('submit', async event => {
+  event.preventDefault();
+  const button = form.querySelector('button');
+  const fields = new FormData(form);
+  button.disabled = true;
+  try { output.textContent = await run(fields); }
+  catch (error) { output.textContent = error.message; }
+  finally { button.disabled = false; }
+});
+</script></body></html>
