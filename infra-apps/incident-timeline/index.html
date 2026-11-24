@@ -1,0 +1,46 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>障害対応タイムライン</title><style>*{box-sizing:border-box}body{margin:0;background:#edf3f2;color:#122a27;font:16px system-ui,sans-serif}main{width:min(92%,720px);margin:8vh auto;background:#fff;padding:clamp(1.2rem,5vw,3rem);border:1px solid #c3d6d3;border-radius:20px}h1{margin:0}form{display:grid;gap:1rem;margin:2rem 0}label{display:grid;gap:.4rem}input,select,button,textarea{font:inherit;padding:.65rem;border:1px solid #65847f;border-radius:8px}button{background:#16534a;color:white;cursor:pointer}output{display:block;white-space:pre-wrap;overflow-wrap:anywhere}li{margin:.7rem 0;overflow-wrap:anywhere}a{color:#16534a}</style><main><h1>障害対応タイムライン</h1><p>検知・調査・復旧の記録を時刻順に並べ、引き継ぎ用のテキストとして保存できます。時刻は端末の現地時刻です。</p><form><label>発生時刻<input name="timestamp" type="datetime-local" required></label><label>区分<select name="kind"><option>検知</option><option>調査</option><option>復旧</option><option>連絡</option></select></label><label>メモ<input name="note" maxlength="300" required></label><button>記録を追加</button></form><output aria-live="polite"></output><ol aria-label="対応記録"></ol><button id="export" disabled>テキストを保存</button></main><script>
+const form = document.querySelector('form');
+const output = document.querySelector('output');
+const exportButton = document.querySelector('#export');
+const entries = [];
+function describe(entry) {
+  return entry.timestamp.replace('T',' ')+' ['+entry.kind+'] '+entry.note;
+}
+function render() {
+  entries.sort((a,b)=>a.timestamp.localeCompare(b.timestamp));
+  const list = document.querySelector('ol');
+  list.replaceChildren();
+  entries.forEach((entry,index)=>{
+    const row = document.createElement('li');
+    const remove = document.createElement('button');
+    remove.textContent = '削除';
+    remove.setAttribute('aria-label',describe(entry)+' を削除');
+    remove.addEventListener('click',()=>{
+      entries.splice(index,1);
+      render();
+      output.textContent = '記録を削除しました。';
+      form.elements.note.focus();
+    });
+    row.append(describe(entry)+' ', remove);
+    list.append(row);
+  });
+  exportButton.disabled = entries.length===0;
+}
+form.addEventListener('submit',event=>{
+  event.preventDefault();
+  const fields = new FormData(form);
+  const note = fields.get('note').trim();
+  if (!note) { output.textContent = 'メモを入力してください。'; return; }
+  entries.push({timestamp:fields.get('timestamp'),kind:fields.get('kind'),note});
+  render();
+  form.elements.note.value = '';
+  output.textContent = '記録を追加しました。ページを閉じる前に保存してください。';
+});
+exportButton.addEventListener('click',()=>{
+  const url = URL.createObjectURL(new Blob([entries.map(describe).join('\n')+'\n'],{type:'text/plain;charset=utf-8'}));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'incident-timeline.txt';
+  link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+});</script></html>
