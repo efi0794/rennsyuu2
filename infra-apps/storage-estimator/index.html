@@ -1,0 +1,12 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>バックアップ容量見積もり</title><style>*{box-sizing:border-box}body{margin:0;background:#edf3f2;color:#122a27;font:16px system-ui,sans-serif}main{width:min(92%,720px);margin:8vh auto;background:#fff;padding:clamp(1.2rem,5vw,3rem);border:1px solid #c3d6d3;border-radius:20px}h1{margin:0}form{display:grid;gap:1rem;margin:2rem 0}label{display:grid;gap:.4rem}input,select,button,textarea{font:inherit;padding:.65rem;border:1px solid #65847f;border-radius:8px}button{background:#16534a;color:white;cursor:pointer}output{display:block;white-space:pre-wrap;overflow-wrap:anywhere}li{margin:.7rem 0;overflow-wrap:anywhere}a{color:#16534a}</style><main><h1>バックアップ容量見積もり</h1><p>初回フルバックアップと日次増分の、保持期間内の合計容量を計算します。</p><form><label>フルバックアップ容量（GB）<input name="full" type="number" min="0" max="1000000000" step="any" value="120" required></label><label>1日あたりの増分（GB）<input name="daily" type="number" min="0" max="1000000000" step="any" value="4" required></label><label>保持日数（フル作成日を含む）<input name="days" type="number" min="1" max="36500" value="14" required></label><label>確保する余裕（容量に加算する割合 %）<input name="margin" type="number" min="0" max="1000" step="any" value="20" required></label><button>見積もる</button></form><output aria-live="polite"></output><p>フル1回の構成を想定しています。圧縮や重複排除は計算に含めません。</p></main><script>
+function estimate(full,daily,days,margin) {
+  const base = full+daily*(days-1);
+  return {base,total:base*(1+margin/100)};
+}
+document.querySelector('form').addEventListener('submit', event=>{
+  event.preventDefault();
+  const fields = new FormData(event.currentTarget);
+  const {base,total} = estimate(...['full','daily','days','margin'].map(name=>Number(fields.get(name))));
+  const format = value => new Intl.NumberFormat('ja-JP',{maximumFractionDigits:3}).format(value);
+  document.querySelector('output').textContent = 'バックアップ合計: '+format(base)+' GB\n余裕込みの必要容量: '+format(total)+' GB';
+});</script></html>
